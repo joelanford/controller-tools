@@ -119,4 +119,11 @@ make lint
 
 header_text "running go test"
 
-go test -race ./pkg/... ./cmd/... -parallel 4
+for dir in $(find . -name go.mod -exec dirname {} \;); do
+  # Includes "BadDeepCopy" types that are not supposed to result in
+  # valid code generation
+  if [[ "$dir" == "./pkg/deepcopy/testdata" ]]; then continue; fi
+
+  echo "Testing module in $dir"
+  (cd "$dir" && go test -race ./... -parallel 4)
+done
