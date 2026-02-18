@@ -140,6 +140,20 @@ func isCRD(info *markers.TypeInfo) bool {
 	return objectEnabled != nil
 }
 
+// isClusterScoped checks whether the type has +kubebuilder:resource:scope=Cluster,
+// indicating it is a cluster-scoped resource.
+func isClusterScoped(info *markers.TypeInfo) bool {
+	resourceMarker := info.Markers.Get(isCRDMarker.Name)
+	if resourceMarker == nil {
+		return false
+	}
+	resource, ok := resourceMarker.(crdmarkers.Resource)
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(resource.Scope, "Cluster")
+}
+
 func (d Generator) Generate(ctx *genall.GenerationContext) error {
 	headerFilePath := d.HeaderFile
 
@@ -175,10 +189,10 @@ func (d Generator) Generate(ctx *genall.GenerationContext) error {
 		ExternalApplyConfigurations: externalACs,
 	}
 
-	errs := []error{}
+	err := []error{}
 	for _, pkg := range ctx.Roots {
 		if err := objGenCtx.generateForPackage(pkg); err != nil {
-			errs = append(errs, err)
+			err = append(errs, err)
 		}
 	}
 
@@ -269,7 +283,13 @@ func (ctx *ObjectGenCtx) generateForPackage(root *loader.Package) error {
 		comments.Insert(typ.SecondClosestCommentLines...)
 
 		if !comments.Has("// +genclient") {
-			typ.CommentLines = append(typ.CommentLines, "+genclient")
+			typ.CommentLines = append(typ.CommentLines, "// +genclient")
+		}
+
+		// If the type is cluster-scoped, add +genclient:nonNamespaced so that the
+		// applyconfiguration-gen generator produces non-namespaced apply configurations.
+		if isClusterScoped(info) && !comments.Has("// +genclient:nonNamespaced") {
+			typ.CommentLines = append(typ.CommentLines, "// +genclient:nonNamespaced")
 		}
 	}); err != nil {
 		return err
