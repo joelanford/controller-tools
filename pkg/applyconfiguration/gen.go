@@ -271,6 +271,16 @@ func (ctx *ObjectGenCtx) generateForPackage(root *loader.Package) error {
 		if !comments.Has("// +genclient") {
 			typ.CommentLines = append(typ.CommentLines, "+genclient")
 		}
+
+		// Check if the resource is cluster-scoped
+		if resourceMarker := info.Markers.Get(isCRDMarker.Name); resourceMarker != nil {
+			resource := resourceMarker.(crdmarkers.Resource)
+			if resource.Scope == "Cluster" {
+				if !comments.Has("// +genclient:nonNamespaced") {
+					typ.CommentLines = append(typ.CommentLines, "+genclient:nonNamespaced")
+				}
+			}
+		}
 	}); err != nil {
 		return err
 	}
